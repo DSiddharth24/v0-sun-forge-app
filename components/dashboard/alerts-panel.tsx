@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import {
   AlertTriangle,
@@ -67,6 +68,12 @@ function getDeviceName(deviceId: string) {
   return devices.find((d) => d.id === deviceId)?.name || deviceId
 }
 
+function formatTimestamp(ts: string) {
+  const d = new Date(ts)
+  const pad = (n: number) => n.toString().padStart(2, "0")
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
+}
+
 export function AlertsPanel() {
   const alerts = getAllAlerts().filter((a) => !a.resolved)
   const techCount = alerts.filter((a) => a.category === "technician").length
@@ -119,7 +126,7 @@ export function AlertsPanel() {
               </div>
               <p className="text-xs leading-relaxed opacity-90">{alert.message}</p>
               <p className="text-[10px] opacity-60">
-                {new Date(alert.timestamp).toLocaleString()}
+                {formatTimestamp(alert.timestamp)}
               </p>
             </div>
           </div>
