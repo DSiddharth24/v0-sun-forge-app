@@ -94,6 +94,15 @@ export async function POST(req: Request) {
       return Response.json({ error: "No image provided" }, { status: 400 })
     }
 
+    // Check for API key
+    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+      console.error("Missing GOOGLE_GENERATIVE_AI_API_KEY environment variable");
+      return Response.json(
+        { error: "API configuration error. If this is a Vercel deployment, please ensure GOOGLE_GENERATIVE_AI_API_KEY is set in the project settings." },
+        { status: 500 }
+      )
+    }
+
     // Extract base64 content if it's a data URL
     const base64Data = image.split(",")[1] || image;
 
@@ -149,11 +158,24 @@ If isSolarPanel is false, you can provide dummy values for other fields but ensu
     }
 
     return Response.json({ result: object })
-  } catch (error) {
-    console.error("Panel inspection error:", error)
+  } catch (error: any) {
+    console.error("Panel inspection raw error:", error)
+
+    let errorMessage = "Failed to analyze panel image. Please try again."
+
+    if (error.message?.includes("quota")) {
+      errorMessage = "AI API quota exceeded. Please check your Google AI Studio plan or try again later."
+    } else if (error.message?.includes("API key")) {
+      errorMessage = "Invalid API Key. Please ensure your GOOGLE_GENERATIVE_AI_API_KEY is correct."
+    } else if (error.message?.includes("not found")) {
+      errorMessage = "AI model not found. Please ensure the model 'gemini-1.5-flash' is available for your API key."
+    } else if (error.status === 413) {
+      errorMessage = "Image too large. Please upload an image smaller than 4MB."
+    }
+
     return Response.json(
-      { error: "Failed to analyze panel image. Please ensure your API key is correct and try again." },
-      { status: 500 }
+      { error: errorMessage },
+      { status: error.status || 500 }
     )
   }
 }
