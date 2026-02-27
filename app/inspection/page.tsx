@@ -278,7 +278,7 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string) =>
     async function startCamera() {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+          video: { facingMode: "environment", width: { ideal: 1280, min: 320 }, height: { ideal: 720, min: 240 } },
         })
         if (!active) { mediaStream.getTracks().forEach((t) => t.stop()); return }
         setStream(mediaStream)
@@ -378,20 +378,45 @@ export default function InspectionPage() {
   const [analyzeProgress, setAnalyzeProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const resizeImage = useCallback((dataUrl: string, maxDim: number): Promise<string> => {
+  // Optimize images: downscale huge ones, upscale tiny ones (360p+), sharpen for AI
+  const optimizeImage = useCallback((dataUrl: string): Promise<string> => {
+    const MAX_DIM = 1536 // Max dimension to keep payload small
+    const MIN_DIM = 640  // Min dimension - upscale tiny images so AI can detect details
     return new Promise((resolve) => {
       const img = new window.Image()
       img.crossOrigin = "anonymous"
       img.onload = () => {
-        if (img.width <= maxDim && img.height <= maxDim) { resolve(dataUrl); return }
-        const scale = Math.min(maxDim / img.width, maxDim / img.height)
+        const { width: w, height: h } = img
+        const longest = Math.max(w, h)
+
+        // If already in the sweet spot, pass through as JPEG
+        if (longest >= MIN_DIM && longest <= MAX_DIM) {
+          const canvas = document.createElement("canvas")
+          canvas.width = w; canvas.height = h
+          const ctx = canvas.getContext("2d")
+          if (!ctx) { resolve(dataUrl); return }
+          ctx.imageSmoothingEnabled = true
+          ctx.imageSmoothingQuality = "high"
+          ctx.drawImage(img, 0, 0, w, h)
+          resolve(canvas.toDataURL("image/jpeg", 0.88))
+          return
+        }
+
+        // Upscale tiny images (360p etc) so the AI has more pixels to analyze
+        // Downscale huge images to stay under API payload limits
+        const targetLongest = longest < MIN_DIM ? MIN_DIM : MAX_DIM
+        const scale = targetLongest / longest
         const canvas = document.createElement("canvas")
-        canvas.width = Math.round(img.width * scale)
-        canvas.height = Math.round(img.height * scale)
+        canvas.width = Math.round(w * scale)
+        canvas.height = Math.round(h * scale)
         const ctx = canvas.getContext("2d")
         if (!ctx) { resolve(dataUrl); return }
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = "high"
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-        resolve(canvas.toDataURL("image/jpeg", 0.85))
+        // Use slightly higher quality for upscaled images, lower for downscaled
+        const quality = longest < MIN_DIM ? 0.92 : 0.85
+        resolve(canvas.toDataURL("image/jpeg", quality))
       }
       img.onerror = () => resolve(dataUrl)
       img.src = dataUrl
@@ -405,12 +430,11 @@ export default function InspectionPage() {
     const reader = new FileReader()
     reader.onload = async (e) => {
       const raw = e.target?.result as string
-      // Resize large images to keep under API limits
-      const optimized = await resizeImage(raw, 2048)
+      const optimized = await optimizeImage(raw)
       setImage(optimized)
     }
     reader.readAsDataURL(file)
-  }, [resizeImage])
+  }, [optimizeImage])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -418,9 +442,10 @@ export default function InspectionPage() {
     if (file) handleFile(file)
   }, [handleFile])
 
-  const handleCameraCapture = (dataUrl: string) => {
-    setImage(dataUrl); setFileName("camera-capture.jpg"); setShowCamera(false)
-    setError(null); setResult(null)
+  const handleCameraCapture = async (dataUrl: string) => {
+    setShowCamera(false); setError(null); setResult(null); setFileName("camera-capture.jpg")
+    const optimized = await optimizeImage(dataUrl)
+    setImage(optimized)
   }
 
   const handleAnalyze = async () => {
@@ -537,7 +562,8 @@ export default function InspectionPage() {
                   <Upload className="h-8 w-8 text-primary" />
                 </div>
                 <h3 className="mt-4 text-sm font-semibold text-foreground">Upload or Capture Panel Photo</h3>
-                <p className="mt-1 text-xs text-muted-foreground">Drag & drop, browse files, or use your device camera. JPG/PNG up to 20MB.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Works with any image quality (360p and above). JPG/PNG up to 20MB.</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground/70">Low-res photos are automatically enhanced for better AI detection.</p>
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
                   <Button onClick={() => fileInputRef.current?.click()} className="bg-primary text-primary-foreground hover:bg-primary/90">
                     <Upload className="mr-2 h-4 w-4" /> Browse Files
@@ -649,10 +675,11 @@ export default function InspectionPage() {
                 <div className="rounded-lg bg-card/50 border border-border p-3">
                   <p className="text-[11px] font-semibold text-foreground mb-1.5">Troubleshooting Tips:</p>
                   <ul className="text-[11px] text-muted-foreground space-y-1 list-disc list-inside">
-                    <li>Ensure the photo clearly shows a solar panel</li>
-                    <li>Use a well-lit image (avoid very dark or overexposed photos)</li>
-                    <li>Keep the image under 5MB for best results</li>
-                    <li>Try taking the photo from directly above or at a slight angle</li>
+                    <li>Any resolution works (360p and above) - low-res images are auto-enhanced</li>
+                    <li>Make sure the photo shows a solar panel (even partially)</li>
+                    <li>Avoid completely dark or fully white/overexposed images</li>
+                    <li>If using camera, hold steady and tap to capture</li>
+                    <li>Try again - sometimes the AI service needs a second attempt</li>
                   </ul>
                 </div>
                 <div className="flex gap-2">
