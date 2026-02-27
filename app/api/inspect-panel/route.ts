@@ -2,64 +2,29 @@ import { generateText, Output } from "ai"
 import { z } from "zod"
 
 const panelIssueSchema = z.object({
-  issueType: z
-    .enum([
-      "dust_accumulation",
-      "glass_cracks",
-      "bird_droppings",
-      "shading",
-      "physical_damage",
-      "discoloration",
-      "hotspot",
-      "delamination",
-      "moisture_ingress",
-      "wiring_visible",
-      "corrosion",
-      "snail_trail",
-      "no_issue",
-    ])
-    .describe("The type of issue detected on the panel"),
-  severityLevel: z
-    .enum(["none", "low", "medium", "high"])
-    .describe("Severity of the issue"),
-  dustLevel: z
-    .enum(["none", "low", "medium", "heavy"])
-    .nullable()
-    .describe("Dust accumulation level, null if not dust-related"),
-  recommendedAction: z
-    .enum(["no_action", "monitor", "clean", "call_technician"])
-    .describe("What action should be taken"),
-  confidenceScore: z
-    .number()
-    .min(0)
-    .max(100)
-    .describe("Confidence score of the detection 0-100"),
-  description: z.string().describe("1-2 sentence plain language description of this finding"),
-  solution: z
-    .string()
-    .describe("Step-by-step solution in 2-4 sentences. Include safety warnings if relevant."),
-  estimatedImpact: z
-    .string()
-    .describe("Estimated impact on power output, e.g. '5-10% power loss'"),
+  issueType: z.string().describe("One of: dust_accumulation, glass_cracks, bird_droppings, shading, physical_damage, discoloration, hotspot, delamination, moisture_ingress, wiring_visible, corrosion, snail_trail, no_issue"),
+  severityLevel: z.string().describe("One of: none, low, medium, high"),
+  dustLevel: z.string().nullable().describe("One of: none, low, medium, heavy - or null if not dust-related"),
+  recommendedAction: z.string().describe("One of: no_action, monitor, clean, call_technician"),
+  confidenceScore: z.number().describe("Confidence 0-100"),
+  description: z.string().describe("1-2 sentence plain language description"),
+  solution: z.string().describe("Step-by-step solution in 2-4 sentences"),
+  estimatedImpact: z.string().describe("Estimated power output impact"),
   region: z.object({
-    x: z.number().min(0).max(100),
-    y: z.number().min(0).max(100),
-    width: z.number().min(5).max(100),
-    height: z.number().min(5).max(100),
-  }),
+    x: z.number(),
+    y: z.number(),
+    width: z.number(),
+    height: z.number(),
+  }).describe("Bounding box as percentages 0-100 of image dimensions"),
 })
 
 const inspectionResultSchema = z.object({
-  overallCondition: z.enum(["good", "fair", "poor", "critical"]),
-  overallConfidence: z.number().min(0).max(100),
-  summary: z
-    .string()
-    .describe("3-5 sentence overall summary of all findings in plain language"),
-  estimatedEfficiencyLoss: z.number().min(0).max(100),
-  maintenancePriority: z.enum(["none", "low", "medium", "high", "urgent"]),
-  issues: z
-    .array(panelIssueSchema)
-    .describe("All detected issues. MUST have at least 1 entry."),
+  overallCondition: z.string().describe("One of: good, fair, poor, critical"),
+  overallConfidence: z.number().describe("Overall confidence 0-100"),
+  summary: z.string().describe("3-5 sentence overall summary"),
+  estimatedEfficiencyLoss: z.number().describe("Estimated efficiency loss percentage 0-100"),
+  maintenancePriority: z.string().describe("One of: none, low, medium, high, urgent"),
+  issues: z.array(panelIssueSchema).describe("All detected issues, at least 1 entry"),
 })
 
 export async function POST(req: Request) {
@@ -74,36 +39,34 @@ export async function POST(req: Request) {
       )
     }
 
-    // Accept both raw base64 and data-url formats
+    // Extract base64 and mime type from data URL
     let base64: string
     let mimeType = "image/jpeg"
 
-    const dataUrlMatch = imageData.match(
-      /^data:(image\/[a-zA-Z+]+);base64,(.+)$/,
-    )
-    if (dataUrlMatch) {
-      mimeType = dataUrlMatch[1]
-      base64 = dataUrlMatch[2]
-    } else if (/^[A-Za-z0-9+/=]+$/.test(imageData.slice(0, 100))) {
-      // Looks like raw base64 already
-      base64 = imageData
+    if (imageData.startsWith("data:")) {
+      const commaIndex = imageData.indexOf(",")
+      if (commaIndex === -1) {
+        return Response.json({ error: "Invalid image format." }, { status: 400 })
+      }
+      const header = imageData.substring(0, commaIndex)
+      const typeMatch = header.match(/data:(image\/[a-zA-Z+]+);/)
+      if (typeMatch) mimeType = typeMatch[1]
+      base64 = imageData.substring(commaIndex + 1)
     } else {
-      return Response.json(
-        { error: "Invalid image format. Please upload a JPG or PNG file." },
-        { status: 400 },
-      )
+      base64 = imageData
     }
 
-    // Validate the base64 is not empty / too small
-    if (base64.length < 500) {
+    if (base64.length < 100) {
       return Response.json(
         { error: "Image appears to be empty or corrupted. Please upload a valid photo." },
         { status: 400 },
       )
     }
 
-    const result = await generateText({
-      model: "google/gemini-3-flash",
+    console.log("[v0] Panel inspection starting. Image base64 length:", base64.length, "mime:", mimeType)
+
+    const { output } = await generateText({
+      model: "google/gemini-2.0-flash-001",
       output: Output.object({ schema: inspectionResultSchema }),
       messages: [
         {
@@ -111,98 +74,80 @@ export async function POST(req: Request) {
           content: [
             {
               type: "text",
-              text: `You are a senior solar panel inspection expert for the Sun Forge monitoring platform.
+              text: `You are a solar panel inspection expert. Analyze this image of a solar panel and identify ALL visible problems.
 
-TASK: Carefully analyze this solar panel image and identify every visible problem. The image may be low-resolution (360p or higher) - you MUST still analyze it thoroughly and make your best assessment even if the image quality is limited.
+The image may be low resolution (360p) - still analyze it thoroughly. For blurry images, use color patterns, brightness distribution, and visible textures to make assessments. Lower your confidence score for unclear detections but still report them.
 
-FOR LOW QUALITY IMAGES:
-- Look at overall color distribution, brightness patterns, and visible textures
-- Infer dust from general haziness or uneven coloring across the panel surface
-- Detect droppings from white/grey irregular spots
-- Identify cracks from any visible line patterns on the glass
-- Notice shading from darker regions or uneven brightness
-- Adjust your confidence score lower (40-70%) for blurry images, but STILL provide findings
-- Mention image quality in your summary if relevant
+Look for these issues:
+1. DUST & DIRT - haze, dirt film, sand covering cells. Rate dust level: low/medium/heavy
+2. GLASS CRACKS - fractures, spider web cracks, impact marks
+3. BIRD DROPPINGS - white/grey spots, dried deposits
+4. SHADING - shadows from trees, buildings, wires
+5. PHYSICAL DAMAGE - dents, broken glass, frame damage
+6. DISCOLORATION - browning, yellowed cells, uneven color
+7. HOTSPOTS - dark burnt marks from overheating
+8. DELAMINATION - bubbling, peeling layers, air pockets
+9. MOISTURE INGRESS - foggy patches, condensation inside
+10. WIRING ISSUES - exposed wires, damaged junction box
+11. CORROSION - rust on frame, oxidized connectors
+12. SNAIL TRAILS - silvery brown lines along cell edges
 
-CHECK FOR ALL OF THESE:
-1. DUST & DIRT - Haze, dirt film, sand, pollen covering cells. Rate: low/medium/heavy
-2. GLASS CRACKS - Hairline fractures, spider web cracks, impact damage
-3. BIRD DROPPINGS - White/grey spots, dried deposits causing shading
-4. SHADING - Shadows from trees, buildings, wires, or other objects
-5. PHYSICAL DAMAGE - Dents, broken glass, frame damage, bent edges
-6. DISCOLORATION - Browning, yellowed cells, uneven cell color
-7. HOTSPOTS - Dark burnt marks, localized discoloration from overheating
-8. DELAMINATION - Bubbling, peeling layers, visible air pockets under glass
-9. MOISTURE INGRESS - Foggy patches, condensation inside, water marks
-10. WIRING ISSUES - Exposed wires, damaged junction box, loose connectors
-11. CORROSION - Rust on metal frame, oxidized connectors
-12. SNAIL TRAILS - Silvery brown lines along cell edges
+For each issue:
+- Set region as percentage coordinates (x, y, width, height from 0-100)
+- Write description a homeowner can understand
+- Give step-by-step solution with safety notes
+- Estimate power impact (e.g. "5-10% power loss")
 
-FOR EACH ISSUE FOUND:
-- Place a bounding box on the ACTUAL location in the image (x, y, width, height as percentages 0-100)
-- Write a clear plain-language description a homeowner can understand
-- Give a specific step-by-step solution with safety precautions
-- Estimate power impact realistically (e.g. "3-5% power loss")
-- Set confidence score based on how clearly visible the issue is
+If panel looks clean, return one "no_issue" entry with confidence score and maintenance tips in the solution field.
+If the image is not a solar panel, describe what you see and note it in the summary.
 
-If the panel looks CLEAN with no issues, return a single "no_issue" entry with maintenance tips.
-If the image does NOT show a solar panel, still provide your best analysis of what you see and note it in the summary.
-
-IMPORTANT: You MUST return at least one issue entry. Always provide actionable solutions.`,
+IMPORTANT: Always return at least 1 issue in the issues array.`,
             },
             {
               type: "image",
               image: base64,
-              mimeType: mimeType as
-                | "image/jpeg"
-                | "image/png"
-                | "image/gif"
-                | "image/webp",
+              mimeType: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
             },
           ],
         },
       ],
     })
 
-    if (!result.output) {
+    console.log("[v0] Panel inspection complete. Output:", output ? "received" : "null")
+
+    if (!output) {
       return Response.json(
-        {
-          error:
-            "AI could not produce a structured report for this image. Please try a different photo or angle.",
-        },
+        { error: "AI could not produce a structured report. Please try a different photo or angle." },
         { status: 422 },
       )
     }
 
-    return Response.json({ result: result.output })
+    return Response.json({ result: output })
   } catch (error: unknown) {
-    console.error("Panel inspection error:", error)
-
     const msg = error instanceof Error ? error.message : String(error)
+    console.error("[v0] Panel inspection error:", msg)
 
     if (msg.includes("rate") || msg.includes("quota") || msg.includes("429")) {
       return Response.json(
-        { error: "AI service is temporarily busy. Please wait 30 seconds and try again." },
+        { error: "AI service is temporarily busy. Please wait a moment and try again." },
         { status: 429 },
       )
     }
-
     if (msg.includes("too large") || msg.includes("payload") || msg.includes("413")) {
       return Response.json(
-        { error: "Image file is too large. Please use a smaller or lower-resolution photo." },
+        { error: "Image is too large for analysis. Please use a smaller photo." },
         { status: 413 },
       )
     }
-
     if (msg.includes("timeout") || msg.includes("ETIMEDOUT")) {
       return Response.json(
-        { error: "Analysis timed out. Please try again - it usually works on the second attempt." },
+        { error: "Analysis timed out. Please try again." },
         { status: 504 },
       )
     }
 
     return Response.json(
-      { error: "Something went wrong analyzing your photo. Please try again with a clear image of your solar panel." },
+      { error: `Analysis failed: ${msg.slice(0, 200)}. Please try again with a clear photo of your solar panel.` },
       { status: 500 },
     )
   }

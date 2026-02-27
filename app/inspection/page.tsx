@@ -461,22 +461,42 @@ export default function InspectionPage() {
     }, 500)
 
     try {
+      console.log("[v0] Sending image for analysis, data length:", image.length)
       const res = await fetch("/api/inspect-panel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Analysis failed. Please try a different photo.")
-      if (!data.result) throw new Error("No analysis results returned. Try uploading a clearer image of a solar panel.")
+      console.log("[v0] API response status:", res.status)
+
+      let data
+      try {
+        data = await res.json()
+      } catch {
+        throw new Error("Server returned an invalid response. Please try again.")
+      }
+
+      console.log("[v0] API response data keys:", data ? Object.keys(data) : "null")
+
+      if (!res.ok) {
+        throw new Error(data?.error || `Server error (${res.status}). Please try again.`)
+      }
+      if (!data?.result) {
+        throw new Error("No analysis results returned. Try a clearer image of a solar panel.")
+      }
+      if (!data.result.issues || !Array.isArray(data.result.issues) || data.result.issues.length === 0) {
+        throw new Error("AI did not detect any findings. Try a different angle or closer photo.")
+      }
+
       clearInterval(interval); setAnalyzeProgress(100)
       await new Promise((r) => setTimeout(r, 300))
       setResult(data.result)
     } catch (err) {
       clearInterval(interval)
       const msg = err instanceof Error ? err.message : "Unknown error"
-      if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
-        setError("Network error. Please check your internet connection and try again.")
+      console.log("[v0] Inspection error:", msg)
+      if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("fetch")) {
+        setError("Network error. Check your internet connection and try again.")
       } else {
         setError(msg)
       }
