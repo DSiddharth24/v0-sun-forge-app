@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AppShell } from "@/components/app-shell"
 import { DeviceCard } from "@/components/devices/device-card"
 import { devices, type SolarDevice } from "@/lib/solar-data"
@@ -48,7 +48,7 @@ export default function DevicesPage() {
           const filteredDummy = devices.filter((d: any) => !liveDeviceIds.has(d.id))
           setAllDevices([...filteredDummy, ...mappedDevices])
         }
-      } catch (err) {}
+      } catch (err) { }
       finally { setLoading(false) }
     }
     fetchSupabaseDevices()
