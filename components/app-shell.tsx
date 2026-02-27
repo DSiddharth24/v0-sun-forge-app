@@ -30,6 +30,7 @@ import {
   CloudSun,
   Monitor,
   TrendingDown,
+  ScanEye,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -51,6 +52,7 @@ import { getAllAlerts } from "@/lib/solar-data"
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/devices", label: "Devices", icon: Cpu },
+  { href: "/inspection", label: "AI Inspection", icon: ScanEye },
   { href: "/issues", label: "Issues", icon: ShieldAlert },
   { href: "/technicians", label: "Technicians", icon: WrenchIcon },
   { href: "/about", label: "About", icon: Info },
