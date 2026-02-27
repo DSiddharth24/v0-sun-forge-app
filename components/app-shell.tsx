@@ -53,9 +53,11 @@ import { ThemeToggle, ThemeToggleInline } from "@/components/theme-toggle"
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/monitoring", label: "Live Monitor", icon: Activity },
   { href: "/devices", label: "Devices", icon: Cpu },
   { href: "/inspection", label: "AI Inspection", icon: ScanEye },
   { href: "/issues", label: "Issues", icon: ShieldAlert },
+  { href: "/recovery", label: "Recovery", icon: TrendingDown },
   { href: "/technicians", label: "Technicians", icon: WrenchIcon },
   { href: "/about", label: "About", icon: Info },
 ]
