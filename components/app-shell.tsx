@@ -14,6 +14,22 @@ import {
   AlertTriangle,
   Droplets,
   Bird,
+  ShieldAlert,
+  Wrench as WrenchIcon,
+  User,
+  Thermometer,
+  Zap,
+  Cable,
+  Battery,
+  CloudLightning,
+  Wifi,
+  HardHat,
+  Hammer,
+  ToggleLeft,
+  BatteryCharging,
+  CloudSun,
+  Monitor,
+  TrendingDown,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -35,18 +51,31 @@ import { getAllAlerts } from "@/lib/solar-data"
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/devices", label: "Devices", icon: Cpu },
+  { href: "/issues", label: "Issues", icon: ShieldAlert },
+  { href: "/technicians", label: "Technicians", icon: WrenchIcon },
   { href: "/about", label: "About", icon: Info },
 ]
 
 function AlertIcon({ type }: { type: string }) {
-  switch (type) {
-    case "dust":
-      return <Droplets className="h-4 w-4 text-warning" />
-    case "bird_poop":
-      return <Bird className="h-4 w-4 text-chart-4" />
-    default:
-      return <AlertTriangle className="h-4 w-4 text-destructive" />
+  const icons: Record<string, React.ReactNode> = {
+    dust: <Droplets className="h-4 w-4 text-warning" />,
+    bird_poop: <Bird className="h-4 w-4 text-chart-4" />,
+    low_power_input: <TrendingDown className="h-4 w-4 text-destructive" />,
+    inverter_fault: <Zap className="h-4 w-4 text-destructive" />,
+    loose_wiring: <Cable className="h-4 w-4 text-destructive" />,
+    battery_problem: <Battery className="h-4 w-4 text-destructive" />,
+    overheating: <Thermometer className="h-4 w-4 text-destructive" />,
+    surge_damage: <CloudLightning className="h-4 w-4 text-destructive" />,
+    monitoring_failure: <Wifi className="h-4 w-4 text-destructive" />,
+    improper_installation: <HardHat className="h-4 w-4 text-destructive" />,
+    panel_damage: <Hammer className="h-4 w-4 text-destructive" />,
+    mcb_trip: <ToggleLeft className="h-4 w-4 text-warning" />,
+    battery_not_charging: <BatteryCharging className="h-4 w-4 text-warning" />,
+    temporary_shading: <CloudSun className="h-4 w-4 text-warning" />,
+    inverter_display_error: <Monitor className="h-4 w-4 text-warning" />,
+    minor_fluctuation: <TrendingDown className="h-4 w-4 text-warning" />,
   }
+  return icons[type] || <AlertTriangle className="h-4 w-4 text-destructive" />
 }
 
 function SeverityBadge({ severity }: { severity: string }) {
@@ -105,11 +134,24 @@ function NotificationPanel() {
                     <AlertIcon type={alert.type} />
                   </div>
                   <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-medium capitalize text-foreground">
-                        {alert.type.replace("_", " ")}
+                        {alert.type.replace(/_/g, " ")}
                       </span>
                       <SeverityBadge severity={alert.severity} />
+                      {"category" in alert && (
+                        <span className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
+                          (alert as { category: string }).category === "technician"
+                            ? "bg-destructive/15 text-destructive"
+                            : "bg-success/15 text-success"
+                        }`}>
+                          {(alert as { category: string }).category === "technician" ? (
+                            <><WrenchIcon className="h-2.5 w-2.5" /> Tech</>
+                          ) : (
+                            <><User className="h-2.5 w-2.5" /> DIY</>
+                          )}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs leading-relaxed text-muted-foreground">
                       {alert.message}
