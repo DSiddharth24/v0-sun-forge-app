@@ -81,6 +81,23 @@ export interface ProblemInfo {
   }
 }
 
+export interface RecoveryReport {
+  id: string
+  alertId: string
+  deviceId: string
+  issueType: AlertType
+  issueLabel: string
+  resolvedAt: string
+  resolvedBy: "customer" | "technician"
+  status: "improved" | "no_change"
+  percentageImprovement: number
+  energyRecovered: number
+  estimatedSavings: number
+  pricePerKwh: number
+  beforeData: { time: string; output: number }[]
+  afterData: { time: string; output: number }[]
+}
+
 export interface EnergyData {
   time: string
   production: number
@@ -715,6 +732,183 @@ export const weeklyData = [
   { day: "Sat", output: 172 },
   { day: "Sun", output: 155 },
 ]
+
+export const recoveryReports: RecoveryReport[] = [
+  {
+    id: "rec-rpt-001",
+    alertId: "a-resolved-001",
+    deviceId: "sf-004",
+    issueType: "mcb_trip",
+    issueLabel: "MCB Trip - Switch Reset",
+    resolvedAt: "2026-02-24T14:30:00Z",
+    resolvedBy: "customer",
+    status: "improved",
+    percentageImprovement: 98,
+    energyRecovered: 7.2,
+    estimatedSavings: 57.6,
+    pricePerKwh: 8.0,
+    beforeData: [
+      { time: "06:00", output: 0 },
+      { time: "08:00", output: 0 },
+      { time: "10:00", output: 0 },
+      { time: "12:00", output: 0 },
+      { time: "14:00", output: 0 },
+      { time: "16:00", output: 0 },
+      { time: "18:00", output: 0 },
+    ],
+    afterData: [
+      { time: "06:00", output: 1.4 },
+      { time: "08:00", output: 4.6 },
+      { time: "10:00", output: 6.8 },
+      { time: "12:00", output: 7.4 },
+      { time: "14:00", output: 6.9 },
+      { time: "16:00", output: 4.4 },
+      { time: "18:00", output: 1.1 },
+    ],
+  },
+  {
+    id: "rec-rpt-002",
+    alertId: "a-resolved-002",
+    deviceId: "sf-002",
+    issueType: "dust",
+    issueLabel: "Dust & Dirt Cleaning",
+    resolvedAt: "2026-02-25T11:00:00Z",
+    resolvedBy: "customer",
+    status: "improved",
+    percentageImprovement: 18,
+    energyRecovered: 2.3,
+    estimatedSavings: 18.4,
+    pricePerKwh: 8.0,
+    beforeData: [
+      { time: "06:00", output: 0.8 },
+      { time: "08:00", output: 2.4 },
+      { time: "10:00", output: 3.2 },
+      { time: "12:00", output: 3.6 },
+      { time: "14:00", output: 3.3 },
+      { time: "16:00", output: 2.1 },
+      { time: "18:00", output: 0.6 },
+    ],
+    afterData: [
+      { time: "06:00", output: 1.1 },
+      { time: "08:00", output: 3.5 },
+      { time: "10:00", output: 4.8 },
+      { time: "12:00", output: 5.2 },
+      { time: "14:00", output: 4.9 },
+      { time: "16:00", output: 3.2 },
+      { time: "18:00", output: 0.9 },
+    ],
+  },
+  {
+    id: "rec-rpt-003",
+    alertId: "a-resolved-003",
+    deviceId: "sf-003",
+    issueType: "bird_poop",
+    issueLabel: "Bird Droppings Cleaned",
+    resolvedAt: "2026-02-26T09:15:00Z",
+    resolvedBy: "customer",
+    status: "improved",
+    percentageImprovement: 24,
+    energyRecovered: 3.8,
+    estimatedSavings: 30.4,
+    pricePerKwh: 8.0,
+    beforeData: [
+      { time: "06:00", output: 1.6 },
+      { time: "08:00", output: 5.2 },
+      { time: "10:00", output: 7.8 },
+      { time: "12:00", output: 8.2 },
+      { time: "14:00", output: 7.4 },
+      { time: "16:00", output: 4.8 },
+      { time: "18:00", output: 1.2 },
+    ],
+    afterData: [
+      { time: "06:00", output: 2.2 },
+      { time: "08:00", output: 7.0 },
+      { time: "10:00", output: 10.4 },
+      { time: "12:00", output: 11.2 },
+      { time: "14:00", output: 10.0 },
+      { time: "16:00", output: 6.5 },
+      { time: "18:00", output: 1.8 },
+    ],
+  },
+  {
+    id: "rec-rpt-004",
+    alertId: "a-resolved-004",
+    deviceId: "sf-006",
+    issueType: "temporary_shading",
+    issueLabel: "Shade Source Removed",
+    resolvedAt: "2026-02-23T16:00:00Z",
+    resolvedBy: "customer",
+    status: "no_change",
+    percentageImprovement: 3,
+    energyRecovered: 0.4,
+    estimatedSavings: 3.2,
+    pricePerKwh: 8.0,
+    beforeData: [
+      { time: "06:00", output: 1.8 },
+      { time: "08:00", output: 5.6 },
+      { time: "10:00", output: 8.2 },
+      { time: "12:00", output: 9.0 },
+      { time: "14:00", output: 8.4 },
+      { time: "16:00", output: 5.4 },
+      { time: "18:00", output: 1.6 },
+    ],
+    afterData: [
+      { time: "06:00", output: 1.9 },
+      { time: "08:00", output: 5.8 },
+      { time: "10:00", output: 8.4 },
+      { time: "12:00", output: 9.2 },
+      { time: "14:00", output: 8.7 },
+      { time: "16:00", output: 5.6 },
+      { time: "18:00", output: 1.7 },
+    ],
+  },
+  {
+    id: "rec-rpt-005",
+    alertId: "a-resolved-005",
+    deviceId: "sf-005",
+    issueType: "inverter_fault",
+    issueLabel: "Inverter Replaced by Technician",
+    resolvedAt: "2026-02-26T15:45:00Z",
+    resolvedBy: "technician",
+    status: "improved",
+    percentageImprovement: 100,
+    energyRecovered: 5.6,
+    estimatedSavings: 44.8,
+    pricePerKwh: 8.0,
+    beforeData: [
+      { time: "06:00", output: 0 },
+      { time: "08:00", output: 0 },
+      { time: "10:00", output: 0 },
+      { time: "12:00", output: 0 },
+      { time: "14:00", output: 0 },
+      { time: "16:00", output: 0 },
+      { time: "18:00", output: 0 },
+    ],
+    afterData: [
+      { time: "06:00", output: 0.5 },
+      { time: "08:00", output: 1.6 },
+      { time: "10:00", output: 2.4 },
+      { time: "12:00", output: 2.8 },
+      { time: "14:00", output: 2.5 },
+      { time: "16:00", output: 1.4 },
+      { time: "18:00", output: 0.3 },
+    ],
+  },
+]
+
+export function getRecoveryForDevice(deviceId: string): RecoveryReport[] {
+  return recoveryReports.filter((r) => r.deviceId === deviceId)
+}
+
+export function getRecoverySummary() {
+  const totalRecovered = recoveryReports.reduce((a, r) => a + r.energyRecovered, 0)
+  const totalSavings = recoveryReports.reduce((a, r) => a + r.estimatedSavings, 0)
+  const avgImprovement =
+    recoveryReports.filter((r) => r.status === "improved").reduce((a, r) => a + r.percentageImprovement, 0) /
+    (recoveryReports.filter((r) => r.status === "improved").length || 1)
+  const improvedCount = recoveryReports.filter((r) => r.status === "improved").length
+  return { totalRecovered, totalSavings, avgImprovement, improvedCount, total: recoveryReports.length }
+}
 
 export function getAllAlerts(): Alert[] {
   return devices.flatMap((d) => d.alerts).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
