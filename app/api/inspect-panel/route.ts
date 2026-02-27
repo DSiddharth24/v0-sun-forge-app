@@ -1,4 +1,5 @@
-import { generateText, Output } from "ai"
+import { google } from "@ai-sdk/google"
+import { generateObject } from "ai"
 import { z } from "zod"
 
 const panelIssueSchema = z.object({
@@ -62,6 +63,9 @@ const panelIssueSchema = z.object({
 })
 
 const inspectionResultSchema = z.object({
+  isSolarPanel: z
+    .boolean()
+    .describe("True if the image clearly shows a solar panel or a component of a solar array"),
   overallCondition: z
     .enum(["good", "fair", "poor", "critical"])
     .describe("Overall panel condition assessment"),
@@ -90,17 +94,23 @@ export async function POST(req: Request) {
       return Response.json({ error: "No image provided" }, { status: 400 })
     }
 
-    const { output } = await generateText({
-      model: "google/gemini-3-flash",
-      output: Output.object({ schema: inspectionResultSchema }),
+    // Extract base64 content if it's a data URL
+    const base64Data = image.split(",")[1] || image;
+
+    const { object } = await generateObject({
+      model: google("gemini-1.5-flash"),
+      schema: inspectionResultSchema,
       messages: [
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: `You are an expert solar panel inspector AI. Analyze this solar panel image and detect any issues.
+              text: `You are an expert solar panel inspector AI. Analyze this image.
+              
+First, determine if the image is actually a solar panel. If it is NOT a solar panel (e.g., it's a person, building, animal, or anything else), set isSolarPanel to false.
 
+If it is a solar panel, analyze it and detect any issues.
 For each issue found, provide:
 1. The specific issue type (dust_accumulation, glass_cracks, bird_droppings, shading, physical_damage, discoloration, hotspot, delamination, or no_issue)
 2. Severity level (none, low, medium, high)
@@ -120,22 +130,29 @@ Be thorough - check the entire panel for:
 - Hotspots (burnt marks, dark spots)
 - Delamination (peeling, bubbling)
 
-If the image does not appear to be a solar panel, still provide your best analysis but note that in the summary. Provide realistic confidence scores based on image clarity and visibility of issues.`,
+If isSolarPanel is false, you can provide dummy values for other fields but ensure isSolarPanel is correctly set to false.`,
             },
             {
               type: "image",
-              image: image,
+              image: base64Data,
             },
           ],
         },
       ],
     })
 
-    return Response.json({ result: output })
+    if (!object.isSolarPanel) {
+      return Response.json(
+        { error: "The uploaded image is not a solar panel. Please upload a clear photo of a solar panel for inspection." },
+        { status: 400 }
+      )
+    }
+
+    return Response.json({ result: object })
   } catch (error) {
     console.error("Panel inspection error:", error)
     return Response.json(
-      { error: "Failed to analyze panel image. Please try again." },
+      { error: "Failed to analyze panel image. Please ensure your API key is correct and try again." },
       { status: 500 }
     )
   }
