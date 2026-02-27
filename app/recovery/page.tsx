@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useTheme } from "next-themes"
 import {
   LineChart,
   Line,
@@ -65,9 +66,26 @@ function SummaryCard({
   )
 }
 
+function useChartColors() {
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const isLight = mounted && resolvedTheme === "light"
+  return {
+    grid: isLight ? "#e5e5e5" : "oklch(0.28 0.01 250)",
+    tick: isLight ? "#737373" : "oklch(0.6 0.02 250)",
+    tooltipBg: isLight ? "#ffffff" : "oklch(0.18 0.005 250)",
+    tooltipBorder: isLight ? "#e5e5e5" : "oklch(0.28 0.01 250)",
+    tooltipText: isLight ? "#171717" : "oklch(0.95 0.01 90)",
+    before: isLight ? "#dc2626" : "oklch(0.58 0.22 27)",
+    after: isLight ? "#16a34a" : "oklch(0.7 0.15 155)",
+  }
+}
+
 function RecoveryCard({ report }: { report: RecoveryReport }) {
   const [expanded, setExpanded] = useState(false)
   const improved = report.status === "improved"
+  const cc = useChartColors()
 
   const chartData = report.beforeData.map((d, i) => ({
     time: d.time,
@@ -287,41 +305,24 @@ function RecoveryCard({ report }: { report: RecoveryReport }) {
                   data={chartData}
                   margin={{ top: 5, right: 10, left: -10, bottom: 0 }}
                 >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="oklch(0.28 0.01 250)"
-                  />
-                  <XAxis
-                    dataKey="time"
-                    tick={{ fontSize: 11, fill: "oklch(0.6 0.02 250)" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: "oklch(0.6 0.02 250)" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
+                  <CartesianGrid strokeDasharray="3 3" stroke={cc.grid} />
+                  <XAxis dataKey="time" tick={{ fontSize: 11, fill: cc.tick }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: cc.tick }} tickLine={false} axisLine={false} />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "oklch(0.18 0.005 250)",
-                      border: "1px solid oklch(0.28 0.01 250)",
+                      backgroundColor: cc.tooltipBg,
+                      border: `1px solid ${cc.tooltipBorder}`,
                       borderRadius: "8px",
                       fontSize: "12px",
-                      color: "oklch(0.95 0.01 90)",
+                      color: cc.tooltipText,
                     }}
                     formatter={(value: number) => [`${value} kW`, undefined]}
                   />
-                  <Legend
-                    wrapperStyle={{
-                      fontSize: "11px",
-                      color: "oklch(0.6 0.02 250)",
-                    }}
-                  />
+                  <Legend wrapperStyle={{ fontSize: "11px", color: cc.tick }} />
                   <Line
                     type="monotone"
                     dataKey="Last 3 Days Avg"
-                    stroke="oklch(0.58 0.22 27)"
+                    stroke={cc.before}
                     strokeWidth={2}
                     strokeDasharray="6 3"
                     dot={{ r: 3, strokeWidth: 2 }}
@@ -330,7 +331,7 @@ function RecoveryCard({ report }: { report: RecoveryReport }) {
                   <Line
                     type="monotone"
                     dataKey="Today"
-                    stroke="oklch(0.7 0.15 155)"
+                    stroke={cc.after}
                     strokeWidth={2.5}
                     dot={{ r: 3, strokeWidth: 2 }}
                     name="Today (After Fix)"

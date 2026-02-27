@@ -49,12 +49,15 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { getAllAlerts } from "@/lib/solar-data"
+import { ThemeToggle, ThemeToggleInline } from "@/components/theme-toggle"
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/monitoring", label: "Live Monitor", icon: Activity },
   { href: "/devices", label: "Devices", icon: Cpu },
   { href: "/inspection", label: "AI Inspection", icon: ScanEye },
   { href: "/issues", label: "Issues", icon: ShieldAlert },
+  { href: "/recovery", label: "Recovery", icon: TrendingDown },
   { href: "/technicians", label: "Technicians", icon: WrenchIcon },
   { href: "/about", label: "About", icon: Info },
 ]
@@ -217,12 +220,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </span>
         </div>
         <NavContent />
-        <div className="mt-auto border-t border-border px-4 py-4">
-          <div className="rounded-lg bg-primary/5 border border-primary/20 px-3 py-3">
-            <p className="text-xs font-medium text-primary">System Status</p>
-            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-              All core systems operational. Last sync 2 min ago.
-            </p>
+        <div className="mt-auto border-t border-border">
+          <ThemeToggleInline />
+          <div className="px-4 pb-4">
+            <div className="rounded-lg bg-primary/5 border border-primary/20 px-3 py-3">
+              <p className="text-xs font-medium text-primary">System Status</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                All core systems operational. Last sync 2 min ago.
+              </p>
+            </div>
           </div>
         </div>
       </aside>
@@ -260,6 +266,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </Button>
                 </div>
                 <NavContent onLinkClick={() => setMobileOpen(false)} />
+                <div className="mt-auto border-t border-border">
+                  <ThemeToggleInline />
+                </div>
               </SheetContent>
             </Sheet>
             <div className="md:hidden flex items-center gap-2">
@@ -269,7 +278,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="text-sm font-bold text-foreground">Sun Forge</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
             <NotificationPanel />
           </div>
         </header>
