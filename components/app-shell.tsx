@@ -163,7 +163,7 @@ function NotificationPanel() {
                       {alert.message}
                     </p>
                     <p className="text-[10px] text-muted-foreground">
-                      {new Date(alert.timestamp).toLocaleString()}
+                      {alert.timestamp.replace("T", " ").replace("Z", "").slice(0, 16)}
                     </p>
                   </div>
                 </div>

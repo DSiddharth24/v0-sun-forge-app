@@ -117,7 +117,7 @@ function IssueCard({
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {getDeviceName(alert.deviceId)} &middot;{" "}
-            {new Date(alert.timestamp).toLocaleString()}
+            {alert.timestamp.replace("T", " ").replace("Z", "").slice(0, 16)}
           </p>
           <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground line-clamp-2">
             {alert.message}

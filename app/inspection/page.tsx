@@ -299,13 +299,16 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (dataUrl: string) =>
 
   const capture = () => {
     if (!videoRef.current) return
+    const video = videoRef.current
     const canvas = document.createElement("canvas")
-    canvas.width = videoRef.current.videoWidth
-    canvas.height = videoRef.current.videoHeight
+    // Use actual video dimensions for high quality capture
+    canvas.width = video.videoWidth || 1280
+    canvas.height = video.videoHeight || 720
     const ctx = canvas.getContext("2d")
     if (!ctx) return
-    ctx.drawImage(videoRef.current, 0, 0)
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.92)
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    // Compress slightly to stay under size limits while keeping quality
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85)
     stream?.getTracks().forEach((t) => t.stop())
     onCapture(dataUrl)
   }
@@ -375,14 +378,39 @@ export default function InspectionPage() {
   const [analyzeProgress, setAnalyzeProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const resizeImage = useCallback((dataUrl: string, maxDim: number): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new window.Image()
+      img.crossOrigin = "anonymous"
+      img.onload = () => {
+        if (img.width <= maxDim && img.height <= maxDim) { resolve(dataUrl); return }
+        const scale = Math.min(maxDim / img.width, maxDim / img.height)
+        const canvas = document.createElement("canvas")
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        const ctx = canvas.getContext("2d")
+        if (!ctx) { resolve(dataUrl); return }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL("image/jpeg", 0.85))
+      }
+      img.onerror = () => resolve(dataUrl)
+      img.src = dataUrl
+    })
+  }, [])
+
   const handleFile = useCallback((file: File) => {
     if (!file.type.startsWith("image/")) { setError("Please upload an image file (JPG, PNG, etc.)"); return }
-    if (file.size > 10 * 1024 * 1024) { setError("Image must be smaller than 10MB"); return }
+    if (file.size > 20 * 1024 * 1024) { setError("Image must be smaller than 20MB"); return }
     setError(null); setResult(null); setFileName(file.name); setShowCamera(false)
     const reader = new FileReader()
-    reader.onload = (e) => setImage(e.target?.result as string)
+    reader.onload = async (e) => {
+      const raw = e.target?.result as string
+      // Resize large images to keep under API limits
+      const optimized = await resizeImage(raw, 2048)
+      setImage(optimized)
+    }
     reader.readAsDataURL(file)
-  }, [])
+  }, [resizeImage])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -414,13 +442,19 @@ export default function InspectionPage() {
         body: JSON.stringify({ image }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Analysis failed")
+      if (!res.ok) throw new Error(data.error || "Analysis failed. Please try a different photo.")
+      if (!data.result) throw new Error("No analysis results returned. Try uploading a clearer image of a solar panel.")
       clearInterval(interval); setAnalyzeProgress(100)
       await new Promise((r) => setTimeout(r, 300))
       setResult(data.result)
     } catch (err) {
       clearInterval(interval)
-      setError(err instanceof Error ? err.message : "Failed to analyze image. Please try again.")
+      const msg = err instanceof Error ? err.message : "Unknown error"
+      if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+        setError("Network error. Please check your internet connection and try again.")
+      } else {
+        setError(msg)
+      }
     } finally {
       setAnalyzing(false); setAnalyzeProgress(0)
     }
@@ -503,7 +537,7 @@ export default function InspectionPage() {
                   <Upload className="h-8 w-8 text-primary" />
                 </div>
                 <h3 className="mt-4 text-sm font-semibold text-foreground">Upload or Capture Panel Photo</h3>
-                <p className="mt-1 text-xs text-muted-foreground">Drag & drop, browse files, or use your device camera. JPG/PNG up to 10MB.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Drag & drop, browse files, or use your device camera. JPG/PNG up to 20MB.</p>
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
                   <Button onClick={() => fileInputRef.current?.click()} className="bg-primary text-primary-foreground hover:bg-primary/90">
                     <Upload className="mr-2 h-4 w-4" /> Browse Files
@@ -604,13 +638,29 @@ export default function InspectionPage() {
 
             {/* Error */}
             {error && (
-              <div className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-                <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-destructive">Analysis Failed</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{error}</p>
-                  <Button variant="outline" size="sm" className="mt-2 border-destructive/30 text-destructive hover:bg-destructive/10" onClick={handleAnalyze}>
-                    <RotateCcw className="mr-1.5 h-3 w-3" /> Retry
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 space-y-3">
+                <div className="flex items-start gap-3">
+                  <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-destructive">Analysis Failed</p>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{error}</p>
+                  </div>
+                </div>
+                <div className="rounded-lg bg-card/50 border border-border p-3">
+                  <p className="text-[11px] font-semibold text-foreground mb-1.5">Troubleshooting Tips:</p>
+                  <ul className="text-[11px] text-muted-foreground space-y-1 list-disc list-inside">
+                    <li>Ensure the photo clearly shows a solar panel</li>
+                    <li>Use a well-lit image (avoid very dark or overexposed photos)</li>
+                    <li>Keep the image under 5MB for best results</li>
+                    <li>Try taking the photo from directly above or at a slight angle</li>
+                  </ul>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="border-destructive/30 text-destructive hover:bg-destructive/10" onClick={handleAnalyze}>
+                    <RotateCcw className="mr-1.5 h-3 w-3" /> Retry Analysis
+                  </Button>
+                  <Button variant="outline" size="sm" className="border-border text-foreground hover:bg-secondary" onClick={handleReset}>
+                    <Upload className="mr-1.5 h-3 w-3" /> Upload Different Photo
                   </Button>
                 </div>
               </div>

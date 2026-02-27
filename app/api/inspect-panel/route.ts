@@ -33,68 +33,58 @@ const panelIssueSchema = z.object({
     .number()
     .min(0)
     .max(100)
-    .describe("Confidence score of the detection as a percentage"),
-  description: z
-    .string()
-    .describe("A 1-2 sentence description of the finding"),
+    .describe("Confidence score of the detection 0-100"),
+  description: z.string().describe("1-2 sentence description of finding"),
   solution: z
     .string()
-    .describe(
-      "A detailed 2-4 sentence step-by-step solution or recommendation for fixing this specific issue. Include safety precautions if relevant."
-    ),
+    .describe("Detailed 2-4 sentence step-by-step solution"),
   estimatedImpact: z
     .string()
-    .describe(
-      "Estimated impact on power output, e.g. '5-10% power loss' or 'Up to 25% reduction in efficiency'"
-    ),
-  region: z
-    .object({
-      x: z.number().min(0).max(100).describe("X position as percentage of image width"),
-      y: z.number().min(0).max(100).describe("Y position as percentage of image height"),
-      width: z.number().min(5).max(100).describe("Width as percentage of image width, minimum 5"),
-      height: z.number().min(5).max(100).describe("Height as percentage of image height, minimum 5"),
-    })
-    .describe("Bounding box of detected issue as percentage coordinates"),
+    .describe("Estimated impact on power output e.g. 5-10% power loss"),
+  region: z.object({
+    x: z.number().min(0).max(100),
+    y: z.number().min(0).max(100),
+    width: z.number().min(5).max(100),
+    height: z.number().min(5).max(100),
+  }),
 })
 
 const inspectionResultSchema = z.object({
-  overallCondition: z
-    .enum(["good", "fair", "poor", "critical"])
-    .describe("Overall panel condition assessment"),
-  overallConfidence: z
-    .number()
-    .min(0)
-    .max(100)
-    .describe("Overall confidence in the analysis"),
-  summary: z
-    .string()
-    .describe(
-      "A 3-5 sentence detailed summary of the panel inspection findings, what problems were found, their likely cause, and the most important next steps to take"
-    ),
-  estimatedEfficiencyLoss: z
-    .number()
-    .min(0)
-    .max(100)
-    .describe("Estimated total efficiency loss percentage due to all detected issues combined"),
-  maintenancePriority: z
-    .enum(["none", "low", "medium", "high", "urgent"])
-    .describe("Overall maintenance priority level"),
+  overallCondition: z.enum(["good", "fair", "poor", "critical"]),
+  overallConfidence: z.number().min(0).max(100),
+  summary: z.string().describe("3-5 sentence summary of findings"),
+  estimatedEfficiencyLoss: z.number().min(0).max(100),
+  maintenancePriority: z.enum(["none", "low", "medium", "high", "urgent"]),
   issues: z
     .array(panelIssueSchema)
-    .describe(
-      "List of ALL detected issues. Be thorough - detect every visible problem. Include at least one entry even if no issues found (use no_issue type)."
-    ),
+    .describe("All detected issues, minimum one entry"),
 })
 
 export async function POST(req: Request) {
   try {
-    const { image } = await req.json()
+    const body = await req.json()
+    const imageData = body.image
 
-    if (!image) {
-      return Response.json({ error: "No image provided" }, { status: 400 })
+    if (!imageData || typeof imageData !== "string") {
+      return Response.json(
+        { error: "No image provided. Please upload or capture a photo." },
+        { status: 400 }
+      )
     }
 
-    const { output } = await generateText({
+    // Strip the data URL prefix to get just the base64 data
+    const base64Match = imageData.match(/^data:image\/[^;]+;base64,(.+)$/)
+    if (!base64Match) {
+      return Response.json(
+        { error: "Invalid image format. Please upload a JPG or PNG image." },
+        { status: 400 }
+      )
+    }
+
+    const mimeTypeMatch = imageData.match(/^data:(image\/[^;]+);base64,/)
+    const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : "image/jpeg"
+
+    const result = await generateText({
       model: "google/gemini-3-flash",
       output: Output.object({ schema: inspectionResultSchema }),
       messages: [
@@ -103,84 +93,90 @@ export async function POST(req: Request) {
           content: [
             {
               type: "text",
-              text: `You are a senior solar panel maintenance expert and AI diagnostic system for the Sun Forge platform. Carefully analyze this solar panel image and provide a comprehensive diagnosis.
+              text: `You are a senior solar panel maintenance expert for the Sun Forge monitoring platform. Analyze this solar panel image and diagnose ALL visible problems.
 
-YOUR TASK:
-Examine every part of the panel surface systematically - top to bottom, left to right. Identify ALL visible issues no matter how small.
+IMPORTANT: You MUST respond with valid structured data. Be thorough and realistic.
 
-DETECTION CHECKLIST - check for each of these:
+Examine the panel systematically and check for:
 
-1. DUST & DIRT ACCUMULATION
-   - Look for: uniform haze, dirt streaks, sand deposits, pollen layer, muddy residue
-   - Classify level: low (thin film), medium (visible layer), heavy (thick opaque coating)
-   - Solution must include: cleaning method, frequency recommendation, water type
+1. DUST & DIRT: Haze, dirt streaks, sand, pollen. Level: low/medium/heavy.
+2. GLASS CRACKS: Hairline fractures, spider web patterns, impact cracks.
+3. BIRD DROPPINGS: White/grey spots, splatter, dried deposits causing hotspots.
+4. SHADING: Shadows from trees, buildings, wires, uneven lighting.
+5. PHYSICAL DAMAGE: Dents, broken glass, frame damage, bent edges.
+6. DISCOLORATION: Browning, yellowed encapsulant, uneven cell color.
+7. HOTSPOTS: Dark burnt marks, localized browning, melted areas - fire hazard.
+8. DELAMINATION: Bubbling, peeling layers, air pockets.
+9. MOISTURE INGRESS: Foggy areas, condensation inside panel, water marks.
+10. WIRING ISSUES: Exposed wires, damaged junction box, loose connectors.
+11. CORROSION: Rust on frame, oxidation on connectors, green patina.
+12. SNAIL TRAILS: Silvery/brown lines along cell edges from moisture reaction.
 
-2. GLASS SURFACE CRACKS
-   - Look for: hairline fractures, spider web patterns, impact cracks, edge chips, micro-cracks
-   - Note: even small cracks can lead to moisture ingress and total panel failure
-   - Solution must include: urgency level, whether panel needs replacement
+For EACH issue found:
+- Place bounding boxes on ACTUAL locations (x, y, width, height as % of image).
+- Give specific actionable solutions with safety precautions.
+- Estimate power impact realistically.
+- Set confidence based on image clarity and how clearly the issue is visible.
 
-3. BIRD DROPPINGS
-   - Look for: white/grey spots, splatter patterns, dried deposits, acidic staining
-   - Note: bird droppings cause hotspots which can permanently damage cells
-   - Solution must include: safe cleaning method, deterrent recommendations
+If the panel looks clean, return a single "no_issue" entry confirming good condition with maintenance tips.
 
-4. SHADING ISSUES
-   - Look for: shadows from trees/buildings/wires, partial shade patterns, uneven lighting
-   - Note: even 5% shading can cause 25%+ power loss
-   - Solution must include: shade source identification, trimming/repositioning advice
-
-5. PHYSICAL DAMAGE
-   - Look for: dents, broken glass, frame damage, bent edges, hail damage
-   - Solution must include: safety warning, whether to disconnect panel
-
-6. DISCOLORATION / YELLOWING
-   - Look for: browning of EVA, yellowed encapsulant, uneven cell color
-   - Note: indicates UV degradation or thermal stress
-
-7. HOTSPOTS
-   - Look for: dark burnt marks, localized browning, melted areas
-   - Note: fire hazard - recommend immediate technician visit
-
-8. DELAMINATION
-   - Look for: bubbling, peeling layers, air pockets between layers, edge lifting
-
-9. MOISTURE / WATER INGRESS
-   - Look for: foggy areas, condensation inside panel, water marks
-
-10. VISIBLE WIRING ISSUES
-    - Look for: exposed wires, damaged junction box, loose connectors
-
-11. CORROSION
-    - Look for: rust on frame, oxidation on connectors, green patina
-
-12. SNAIL TRAILS
-    - Look for: silvery/brown lines following cell edges (indicates moisture + chemical reaction)
-
-IMPORTANT RULES:
-- Be THOROUGH. Report every issue you can identify.
-- Place bounding boxes ACCURATELY on the actual location of each issue.
-- Make bounding boxes large enough to be visible (minimum 5% width and height).
-- Provide REALISTIC confidence scores based on image clarity.
-- For each issue, provide a SPECIFIC actionable solution, not generic advice.
-- Estimate the POWER IMPACT of each issue.
-- If the image is NOT a solar panel, still analyze it but clearly state that in the summary and set overall condition to "poor" with a note explaining it doesn't appear to be a solar panel.
-- If the panel looks clean and healthy, confirm that with a "no_issue" entry and provide maintenance tips to keep it that way.`,
+If this is NOT a solar panel image, still analyze it but note that in the summary and set condition to "poor".`,
             },
             {
               type: "image",
-              image: image,
+              image: base64Match[1],
+              mimeType: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
             },
           ],
         },
       ],
     })
 
-    return Response.json({ result: output })
-  } catch (error) {
+    if (!result.output) {
+      return Response.json(
+        {
+          error:
+            "AI could not generate a structured analysis. The image may be unclear or not showing a solar panel. Please try with a clearer photo.",
+        },
+        { status: 422 }
+      )
+    }
+
+    return Response.json({ result: result.output })
+  } catch (error: unknown) {
     console.error("Panel inspection error:", error)
+
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error"
+
+    if (errorMessage.includes("rate") || errorMessage.includes("quota")) {
+      return Response.json(
+        {
+          error:
+            "AI service rate limit reached. Please wait a moment and try again.",
+        },
+        { status: 429 }
+      )
+    }
+
+    if (
+      errorMessage.includes("too large") ||
+      errorMessage.includes("payload")
+    ) {
+      return Response.json(
+        {
+          error:
+            "Image is too large to process. Please use a smaller image (under 5MB recommended).",
+        },
+        { status: 413 }
+      )
+    }
+
     return Response.json(
-      { error: "Failed to analyze panel image. Please try again." },
+      {
+        error:
+          "Failed to analyze the panel image. Please try again with a clear photo of your solar panel.",
+      },
       { status: 500 }
     )
   }
