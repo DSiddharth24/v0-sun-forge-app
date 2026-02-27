@@ -1,6 +1,8 @@
-import { openai } from "@ai-sdk/openai"
+import { createGroq } from "@ai-sdk/groq"
 import { generateObject } from "ai"
 import { z } from "zod"
+
+const groq = createGroq({ apiKey: process.env.GROQ_API_KEY })
 
 const panelIssueSchema = z.object({
   issueType: z
@@ -94,11 +96,11 @@ export async function POST(req: Request) {
       return Response.json({ error: "No image provided" }, { status: 400 })
     }
 
-    // Check for OpenAI API key
-    if (!process.env.OPENAI_API_KEY) {
-      console.error("Missing OPENAI_API_KEY environment variable");
+    // Check for Groq API key
+    if (!process.env.GROQ_API_KEY) {
+      console.error("Missing GROQ_API_KEY environment variable");
       return Response.json(
-        { error: "API configuration error. If this is a Vercel deployment, please ensure OPENAI_API_KEY is set in the project settings." },
+        { error: "API configuration error. If this is a Vercel deployment, please ensure GROQ_API_KEY is set in the project settings." },
         { status: 500 }
       )
     }
@@ -107,7 +109,7 @@ export async function POST(req: Request) {
     const base64Data = image.split(",")[1] || image;
 
     const { object } = await generateObject({
-      model: openai("gpt-4o-mini"),
+      model: groq("llama-3.2-11b-vision-preview"),
       schema: inspectionResultSchema,
       messages: [
         {
@@ -143,7 +145,7 @@ If isSolarPanel is false, you can provide dummy values for other fields but ensu
             },
             {
               type: "image",
-              image: `data:image/jpeg;base64,${base64Data}`,
+              image: `data:image/jpeg;base64,${base64Data}` as `data:image/jpeg;base64,${string}`,
             },
           ],
         },
@@ -164,9 +166,9 @@ If isSolarPanel is false, you can provide dummy values for other fields but ensu
     let errorMessage = "Failed to analyze panel image. Please try again."
 
     if (error.message?.includes("quota") || error.status === 429) {
-      errorMessage = "AI API quota exceeded. Please check your OpenAI billing plan or try again later."
+      errorMessage = "AI API quota exceeded. Please check your Groq plan or try again later."
     } else if (error.message?.includes("API key") || error.status === 401) {
-      errorMessage = "Invalid API Key. Please ensure your OPENAI_API_KEY is correct."
+      errorMessage = "Invalid API Key. Please ensure your GROQ_API_KEY is correct."
     } else if (error.status === 413) {
       errorMessage = "Image too large. Please upload an image smaller than 4MB."
     }
