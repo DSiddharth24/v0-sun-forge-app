@@ -81,7 +81,8 @@ export function DeviceCard({ device }: { device: SolarDevice }) {
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">Power Output</span>
             <span className="font-medium text-foreground">
-              {device.powerOutput} / {device.maxOutput} kW
+              {device.voltage !== undefined && <span className="text-[10px] mr-2 opacity-50">{device.voltage}V {device.current}A</span>}
+              {device.powerOutput} / {device.maxOutput} {device.maxOutput < 100 ? 'W' : 'kW'}
             </span>
           </div>
           <Progress

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
 import { DeviceCard } from "@/components/devices/device-card"
-import { devices } from "@/lib/solar-data"
+import { devices, type SolarDevice } from "@/lib/solar-data"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Search, Wifi, WifiOff, AlertTriangle } from "lucide-react"
@@ -20,8 +20,43 @@ import {
 export default function DevicesPage() {
   const [filter, setFilter] = useState<"all" | "online" | "warning" | "offline">("all")
   const [search, setSearch] = useState("")
+  const [allDevices, setAllDevices] = useState<SolarDevice[]>(devices)
+  const [loading, setLoading] = useState(true)
 
-  const filteredDevices = devices.filter((d) => {
+  useEffect(() => {
+    const fetchSupabaseDevices = async () => {
+      try {
+        const response = await fetch('/api/devices')
+        if (response.ok) {
+          const dbDevices = await response.json()
+          const mappedDevices: SolarDevice[] = dbDevices.map((d: any) => ({
+            id: d.device_id,
+            name: d.name,
+            location: d.location,
+            status: d.status,
+            powerOutput: d.latest_reading?.power_watts || 0,
+            maxOutput: 50,
+            efficiency: d.latest_reading?.efficiency || 0,
+            temperature: 30,
+            lastCleaned: new Date().toISOString(),
+            installDate: d.created_at,
+            alerts: [],
+            voltage: d.latest_reading?.voltage,
+            current: d.latest_reading?.current_estimated
+          }))
+          const liveDeviceIds = new Set(mappedDevices.map((d: any) => d.id))
+          const filteredDummy = devices.filter((d: any) => !liveDeviceIds.has(d.id))
+          setAllDevices([...filteredDummy, ...mappedDevices])
+        }
+      } catch (err) {}
+      finally { setLoading(false) }
+    }
+    fetchSupabaseDevices()
+    const interval = setInterval(fetchSupabaseDevices, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const filteredDevices = allDevices.filter((d) => {
     const matchesFilter = filter === "all" || d.status === filter
     const matchesSearch =
       d.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -30,9 +65,9 @@ export default function DevicesPage() {
     return matchesFilter && matchesSearch
   })
 
-  const onlineCount = devices.filter((d) => d.status === "online").length
-  const warningCount = devices.filter((d) => d.status === "warning").length
-  const offlineCount = devices.filter((d) => d.status === "offline").length
+  const onlineCount = allDevices.filter((d) => d.status === "online").length
+  const warningCount = allDevices.filter((d) => d.status === "warning").length
+  const offlineCount = allDevices.filter((d) => d.status === "offline").length
 
   return (
     <AppShell>
@@ -106,7 +141,7 @@ export default function DevicesPage() {
               className={filter === "all" ? "bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:text-foreground"}
             >
               All
-              <Badge variant="secondary" className="ml-1.5 bg-secondary text-secondary-foreground">{devices.length}</Badge>
+              <Badge variant="secondary" className="ml-1.5 bg-secondary text-secondary-foreground">{allDevices.length}</Badge>
             </Button>
             <Button
               variant={filter === "online" ? "default" : "outline"}

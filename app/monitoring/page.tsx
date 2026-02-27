@@ -190,6 +190,22 @@ export default function MonitoringPage() {
   const [downtimeLogs, setDowntimeLogs] = useState<DowntimeLog[]>([])
   const [simulatePaused, setSimulatePaused] = useState(false)
   const [lowVoltTicks, setLowVoltTicks] = useState(0)
+  const [liveEspData, setLiveEspData] = useState<any>(null)
+
+  useEffect(() => {
+    const fetchEspData = async () => {
+      try {
+        const res = await fetch('/api/devices/ESP32-001/readings')
+        if (res.ok) {
+          const data = await res.json()
+          if (data && data.length > 0) setLiveEspData(data[0])
+        }
+      } catch (e) {}
+    }
+    fetchEspData()
+    const interval = setInterval(fetchEspData, 5000)
+    return () => clearInterval(interval)
+  }, [])
 
   const downtimeStartRef = useRef<Date | null>(null)
   const cc = useChartColors()
@@ -641,6 +657,48 @@ export default function MonitoringPage() {
                 <Clock className="h-3 w-3" />
                 Night mode activated at {nightEnteredAt.toLocaleTimeString()}
               </div>
+            )}
+          </div>
+        </section>
+
+        {/* Live Hardware Telemetry (Supabase) */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold text-foreground">Live Hardware Telemetry (Supabase)</h2>
+            </div>
+            {liveEspData && (
+               <Badge variant="outline" className="border-success text-success bg-success/10">ESP32 Connected</Badge>
+            )}
+          </div>
+          
+          <div className="rounded-xl border border-border bg-card p-5">
+            {liveEspData ? (
+               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                 <div className="rounded-lg border border-border border-dashed bg-secondary/20 p-4 text-center">
+                   <p className="text-xs text-muted-foreground mb-1">Voltage (INA219)</p>
+                   <p className="text-xl font-bold text-foreground">{liveEspData.voltage} <span className="text-sm font-normal">V</span></p>
+                 </div>
+                 <div className="rounded-lg border border-border border-dashed bg-secondary/20 p-4 text-center">
+                   <p className="text-xs text-muted-foreground mb-1">Current (Est.)</p>
+                   <p className="text-xl font-bold text-foreground">{liveEspData.current_estimated} <span className="text-sm font-normal">A</span></p>
+                 </div>
+                 <div className="rounded-lg border border-border border-dashed bg-secondary/20 p-4 text-center">
+                   <p className="text-xs text-muted-foreground mb-1">Power Output</p>
+                   <p className="text-xl font-bold text-success">{liveEspData.power_watts} <span className="text-sm font-normal">W</span></p>
+                 </div>
+                 <div className="rounded-lg border border-border border-dashed bg-secondary/20 p-4 text-center">
+                   <p className="text-xs text-muted-foreground mb-1">Efficiency</p>
+                   <p className="text-xl font-bold text-primary">{liveEspData.efficiency} <span className="text-sm font-normal">%</span></p>
+                 </div>
+               </div>
+            ) : (
+               <div className="text-center py-6">
+                 <span className="inline-block h-2 w-2 rounded-full bg-warning animate-pulse mb-3" />
+                 <p className="text-sm text-muted-foreground">Waiting for ESP32 hardware connection...</p>
+                 <p className="text-xs mt-1 text-muted-foreground opacity-70">Send data to /api/iot-ingest to see it here</p>
+               </div>
             )}
           </div>
         </section>

@@ -10,6 +10,8 @@ export interface SolarDevice {
   alerts: Alert[]
   temperature: number
   installDate: string
+  voltage?: number
+  current?: number
 }
 
 export interface Alert {
