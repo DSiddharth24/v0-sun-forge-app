@@ -1,28 +1,23 @@
-const { google } = require("@ai-sdk/google");
+const { createGroq } = require("@ai-sdk/groq");
 const { generateObject } = require("ai");
 const { z } = require("zod");
 require("dotenv").config({ path: ".env.local" });
 
-async function testAI() {
-    const modelsToTry = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash", "gemini-pro-vision"];
+const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
 
-    for (const modelName of modelsToTry) {
-        try {
-            console.log(`--- Testing model: ${modelName} ---`);
-            const result = await generateObject({
-                model: google(modelName),
-                schema: z.object({
-                    test: z.string()
-                }),
-                prompt: "Say hello",
-            });
+async function testGroq() {
+    console.log("GROQ_API_KEY:", process.env.GROQ_API_KEY ? "Found ✅" : "Missing ❌");
 
-            console.log(`Success with ${modelName}:`, JSON.stringify(result.object, null, 2));
-            return; // Stop if one works
-        } catch (error) {
-            console.error(`Error with ${modelName}:`, error.message);
-        }
+    try {
+        const result = await generateObject({
+            model: groq("llama-3.2-11b-vision-preview"),
+            schema: z.object({ isWorking: z.boolean() }),
+            prompt: "Return isWorking as true.",
+        });
+        console.log("Groq API works! ✅", result.object);
+    } catch (err) {
+        console.error("Groq API error ❌:", err.message);
     }
 }
 
-testAI();
+testGroq();

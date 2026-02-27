@@ -109,7 +109,7 @@ export async function POST(req: Request) {
     const base64Data = image.split(",")[1] || image;
 
     const { object } = await generateObject({
-      model: groq("llama-3.2-11b-vision-preview"),
+      model: groq("meta-llama/llama-4-scout-17b-16e-instruct"),
       schema: inspectionResultSchema,
       messages: [
         {
