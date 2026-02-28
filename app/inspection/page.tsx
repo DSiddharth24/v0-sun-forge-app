@@ -183,11 +183,10 @@ function IssueResultCard({
 
   return (
     <div
-      className={`rounded-xl border p-4 transition-all duration-200 ${
-        isHighlighted
+      className={`rounded-xl border p-4 transition-all duration-200 ${isHighlighted
           ? "border-primary/50 bg-primary/5 ring-1 ring-primary/30"
           : "border-border bg-card"
-      }`}
+        }`}
       onMouseEnter={() => onHover(index)}
       onMouseLeave={() => onHover(null)}
     >
@@ -216,9 +215,8 @@ function IssueResultCard({
       <div className="mt-3 flex items-center gap-2 flex-wrap">
         {/* Severity */}
         <span
-          className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium ${
-            severityColors[issue.severityLevel] || severityColors.low
-          }`}
+          className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium ${severityColors[issue.severityLevel] || severityColors.low
+            }`}
         >
           {issue.severityLevel.charAt(0).toUpperCase() + issue.severityLevel.slice(1)} Severity
         </span>
@@ -267,7 +265,42 @@ export default function InspectionPage() {
 
     const reader = new FileReader()
     reader.onload = (e) => {
-      setImage(e.target?.result as string)
+      const img = new Image()
+      img.onload = () => {
+        // Enforce max dimensions (e.g., 1024x1024) to prevent payload too large
+        // while ensuring it's well above the 2x2 minimum
+        const MAX_SIZE = 1024
+        let width = img.width
+        let height = img.height
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width)
+            width = MAX_SIZE
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height)
+            height = MAX_SIZE
+          }
+        }
+
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext("2d")
+
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height)
+          // Compress to JPEG to save bandwidth
+          const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7)
+          setImage(compressedBase64)
+        } else {
+          // Fallback if canvas fails
+          setImage(e.target?.result as string)
+        }
+      }
+      img.src = e.target?.result as string
     }
     reader.readAsDataURL(file)
   }, [])
